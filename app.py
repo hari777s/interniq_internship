@@ -1,72 +1,52 @@
 import streamlit as st
-import pandas as pd
-from textblob import TextBlob
+import tensorflow as tf
+from tensorflow.keras.models import load_model
+import numpy as np
+from PIL import Image
 import matplotlib.pyplot as plt
-import seaborn as sns
-import nltk
 
-# Download nltk data
-nltk.download('punkt')
-nltk.download('averaged_perceptron_tagger')
+# Load the trained model
+model = load_model('cifar10_model.h5')
 
-# Function to load data
-@st.cache
-def load_data():
-    # Update this to the path where you saved the CSV file
-    local_file_path = r"D:\data analyst\intership\task 2 - social media sentiment analysis\Tweets.csv"
-    data = pd.read_csv(local_file_path)
-    return data
+# Define the CIFAR-10 class names
+class_names = ['airplane', 'automobile', 'bird', 'cat', 'deer',
+               'dog', 'frog', 'horse', 'ship', 'truck']
 
-# Preprocess the data
-def preprocess_data(data):
-    data['text'] = data['text'].apply(lambda x: x.lower())
-    data['text'] = data['text'].apply(lambda x: ' '.join([word for word in x.split() if word.isalnum()]))
-    return data
+# Function to preprocess the uploaded image
+def preprocess_image(image):
+    image = image.resize((32, 32))
+    image = np.array(image)
+    image = image / 255.0
+    image = np.expand_dims(image, axis=0)
+    return image
 
-# Perform sentiment analysis
-def analyze_sentiment(text):
-    analysis = TextBlob(text)
-    if analysis.sentiment.polarity > 0:
-        return 'Positive'
-    elif analysis.sentiment.polarity == 0:
-        return 'Neutral'
-    else:
-        return 'Negative'
+# Function to predict the class of an image
+def predict(image):
+    prediction = model.predict(image)
+    predicted_class = class_names[np.argmax(prediction)]
+    confidence = np.max(prediction)
+    return predicted_class, confidence
 
-# Main function to create the Streamlit app
+# Streamlit app
 def main():
-    st.title("Social Media Sentiment Analysis")
-    st.write("This is a web application to perform sentiment analysis on social media posts.")
+    st.title("CIFAR-10 Image Classification")
+    st.write("Upload an image and the model will predict its class.")
 
-    # Load and preprocess data
-    data = load_data()
-    data = preprocess_data(data)
-    
-    # Display the raw data
-    if st.checkbox("Show raw data"):
-        st.write(data.head())
+    # Upload image
+    uploaded_file = st.file_uploader("Choose an image...", type="jpg")
 
-    # Sentiment analysis
-    data['sentiment'] = data['text'].apply(analyze_sentiment)
+    if uploaded_file is not None:
+        image = Image.open(uploaded_file)
+        st.image(image, caption='Uploaded Image.', use_column_width=True)
+        st.write("")
 
-    # Display sentiment counts
-    st.write("### Sentiment Counts")
-    sentiment_counts = data['sentiment'].value_counts()
-    st.write(sentiment_counts)
+        # Preprocess and predict
+        st.write("Classifying...")
+        processed_image = preprocess_image(image)
+        predicted_class, confidence = predict(processed_image)
+        
+        st.write(f"Predicted Class: {predicted_class}")
+        st.write(f"Confidence: {confidence:.2f}")
 
-    # Plot sentiment counts
-    st.write("### Sentiment Distribution")
-    fig, ax = plt.subplots()
-    sns.countplot(x='sentiment', data=data, ax=ax)
-    st.pyplot(fig)
-
-    # User input for custom sentiment analysis
-    st.write("### Analyze Custom Text")
-    user_input = st.text_area("Enter text here:")
-    if st.button("Analyze"):
-        sentiment = analyze_sentiment(user_input)
-        st.write("Sentiment:", sentiment)
-
-# Run the app
 if __name__ == "__main__":
     main()
